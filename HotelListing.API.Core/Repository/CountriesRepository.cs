@@ -19,7 +19,7 @@ namespace HotelListing.API.Repository
             this._mapper = mapper;
         }
 
-        public async Task<Country> GetDetails(int id)
+        public async Task<CountryDto> GetDetails(int id)
         {
             var country = await _context.Countries.Include(q => q.Hotels).ProjectTo<CountryDto>(_mapper.ConfigurationProvider).FirstOrDefaultAsync(q => q.Id == id);
 

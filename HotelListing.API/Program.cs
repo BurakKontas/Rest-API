@@ -5,9 +5,14 @@ using HotelListing.API.Middleware;
 using HotelListing.API.Repository;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Versioning;
+using Microsoft.AspNetCore.OData;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.Net.Http.Headers;
 using Serilog;
+using System.Net.Http.Headers;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -26,7 +31,6 @@ builder.Services.AddIdentityCore<ApiUser>()
     .AddEntityFrameworkStores<HotelListingDbContext>()
     .AddDefaultTokenProviders();
 
-builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -37,6 +41,24 @@ builder.Services.AddCors(options =>
         b => b.AllowAnyHeader()
             .AllowAnyOrigin()
             .AllowAnyMethod());
+});
+
+builder.Services.AddApiVersioning(options =>
+{
+    options.AssumeDefaultVersionWhenUnspecified = true;
+    options.DefaultApiVersion = new ApiVersion(1,0);
+    options.ReportApiVersions = true;
+    options.ApiVersionReader = ApiVersionReader.Combine(
+        new QueryStringApiVersionReader("api-version"),
+        new HeaderApiVersionReader("X-version"),
+        new MediaTypeApiVersionReader("ver")
+        ); ;
+});
+
+builder.Services.AddVersionedApiExplorer(options =>
+{
+    options.GroupNameFormat = "'v'VVV";
+    options.SubstituteApiVersionInUrl = true;
 });
 
 builder.Host.UseSerilog((ctx,lc) => lc.WriteTo.Console().ReadFrom.Configuration(ctx.Configuration));
@@ -67,6 +89,19 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+builder.Services.AddResponseCaching(options =>
+{
+    options.MaximumBodySize = 1024; //1 mb
+    options.UseCaseSensitivePaths = true;
+});
+
+builder.Services.AddControllers()
+    .AddOData(options =>
+    {
+        options.Select().Filter().OrderBy();
+    });
+
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -81,6 +116,19 @@ app.UseMiddleware<ExceptionMiddleware>();
 app.UseHttpsRedirection();
 
 app.UseCors("AllowAll");
+
+app.UseResponseCaching();
+
+app.Use(async (context, next) =>
+{
+    context.Response.GetTypedHeaders().CacheControl = new Microsoft.Net.Http.Headers.CacheControlHeaderValue()
+    {
+        Public = true,
+        MaxAge = TimeSpan.FromSeconds(10) //every request in 10 seconds will send cached data that means your data will updated after 10 seconds
+    };
+    context.Response.Headers[HeaderNames.Vary] = new string[] { "Accept-Encoding" };
+    await next();
+});
 
 app.UseAuthentication(); //this will be above authorization
 app.UseAuthorization();

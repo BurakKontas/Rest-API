@@ -11,11 +11,20 @@ using AutoMapper;
 using HotelListing.API.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using HotelListing.API.Exceptions;
+using HotelListing.API.Models;
+using Microsoft.AspNetCore.OData.Query;
 
 namespace HotelListing.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    
+    //[ApiVersion("1.0")] version
+    //api/countries?api-version=1 //we spesified api-version string in Program.cs
+    //or X-Version key with version value in header
+    //or spesify route [Route("api/v{version:apiVersion}/[controller]")] then use like api/v1/countries
+    //also you can [ApiVersion("1.0", Deprecated = true)] to deprecate version
+    
     //[Authorize] //authorize all
     public class CountriesController : ControllerBase
     {
@@ -30,8 +39,15 @@ namespace HotelListing.API.Controllers
             this._logger = logger;
         }
 
-        // GET: api/Countries
-        [HttpGet]
+        // GET: api/Countries/GetAll
+        [HttpGet("GetAll")]
+        [EnableQuery]
+        //api/Countries/getall?$select=name&$filter
+        //$filter=name eq 'Turkey'
+        //gt greater than
+        //lt less than
+        //$orderby=name 
+        //you can use all of them with other
         public async Task<ActionResult<IEnumerable<GetCountryDto>>> GetCountries()
         {
           if (_countriesRepository == null)
@@ -43,6 +59,18 @@ namespace HotelListing.API.Controllers
             // We cant make map from Lists
             var records = _mapper.Map<List<GetCountryDto>>(countries);
             return Ok(records); //200 success
+        }
+
+        // GET: api/Countries/?StartIndex=0&pagesize=25&PageNumber=1
+        [HttpGet]
+        public async Task<ActionResult<PagedResult<GetCountryDto>>> GetPagedCountries([FromQuery] QueryParameters queryParameter)
+        {
+            if (_countriesRepository == null)
+            {
+                return NotFound();
+            }
+            var pagedCountriesResult = await _countriesRepository.GetAllAsync<GetCountryDto>(queryParameter);
+            return Ok(pagedCountriesResult); //200 success
         }
 
         // GET: api/Countries/5
